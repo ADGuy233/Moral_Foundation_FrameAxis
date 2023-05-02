@@ -24,9 +24,9 @@ FrameAxis is a flexible framework and all it needs is sets of antonym words. The
 
 ### Sample running script in terminal:
 ```
-IN_FILE="path_to_your_input.csv"
-COLNAME="colname_to_calc_scores_on"
-DICT="mfd"
-OUT_FILE="path_to_save_results.csv"
-python main.py --input_file $IN_FILE --docs_colname $COLNAME --dict_type $DICT --output_file $OUT_FILE
+IN_FILE="Data2010.csv"
+COLNAME="desc"
+DICT="mfd2"
+OUT_FILE="results.csv"
+python main.py --input_file Data2010.csv --docs_colname desc --dict_type mfd2 --output_file results.csv
 ```

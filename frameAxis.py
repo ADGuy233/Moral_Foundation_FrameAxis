@@ -5,8 +5,21 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 from preprocess.preprocess import preprocess
+
+
+def cos_sim(a, b):
+    '''
+    
+    :param a: vector a
+    '''
+    dot = np.dot(a, b)
+    norma = np.linalg.norm(a)
+    normb = np.linalg.norm(b)
+    cos = dot / (norma * normb)
+    return cos
 
 
 class FrameAxis:
@@ -38,6 +51,10 @@ class FrameAxis:
         #                      'liberty': {}, 'purity': {}}
 
     def read_mfd2_into_dataframe(self, current_dir_path):
+        '''
+        read mfd2.txt into a dataframe
+        :param current_dir_path: path to the current directory
+        '''
         num_to_mf = {}
         mfs_df = []
         with open(f'{current_dir_path}/moral_foundation_dictionaries/mfd2.txt', 'r') as mfd2:
@@ -63,13 +80,17 @@ class FrameAxis:
         return mfd2_df
 
     def vocab_sim_axes(self, words):
+        '''
+        compute the cosine similarity between each word in the vocabulary and each moral foundation axis
+        :param words: list of words to compute similarity for
+        '''
         # words = self.vocab
         rows = []
         for word in words:
             row_dict = {'token': word}
             for mf in self.axes.keys():
                 if word in self.vocab:
-                    row_dict[mf] = self.cos_sim(self.model[word], self.axes[mf])
+                    row_dict[mf] = cos_sim(self.model[word], self.axes[mf])
                 else:
                     row_dict[mf] = np.nan
             rows.append(row_dict)
@@ -77,17 +98,13 @@ class FrameAxis:
         df_sim = pd.DataFrame(rows)
         return df_sim
 
-    def cos_sim(self, a, b):
-        dot = np.dot(a, b)
-        norma = np.linalg.norm(a)
-        normb = np.linalg.norm(b)
-        cos = dot / (norma * normb)
-        return cos
-
     def _compute_axes(self, mfd):
+        '''
+        compute the moral foundation axes from the moral foundation dictionary
+        '''
         axes = {}
-        mfs = []
-        grp = mfd.groupby('category')
+        mfs = [] # moral foundation names
+        grp = mfd.groupby('category') # group by moral foundation
         for mf, mf_group in grp:
             virtue_vecs = []
             vice_vecs = []
@@ -153,6 +170,12 @@ class FrameAxis:
         return axes, mfs
 
     def framing_scores(self, doc_tokens, mf, B_T=None):
+        '''
+        compute the bias and intensity scores for a document
+        :param doc_tokens: list of tokens in the document
+        :param mf: moral foundation to compute scores for
+        :param B_T: threshold for bias score
+        '''
         bias_score = 0.0
         intensity_score = 0.0
         freq = Counter(doc_tokens)
@@ -160,15 +183,20 @@ class FrameAxis:
         sum_freq = 0.0
         for token in doc_tokens_set:
             sum_freq += freq[token]
-            bias_score += (freq[token] * self.cos_sim(self.model[token], self.axes[mf]))
+            bias_score += (freq[token] * cos_sim(self.model[token], self.axes[mf]))
             if B_T is not None:
-                intensity_score += (freq[token] * (self.cos_sim(self.model[token], self.axes[mf]) - B_T) ** 2)
+                intensity_score += (freq[token] * (cos_sim(self.model[token], self.axes[mf]) - B_T) ** 2)
 
         bias_score /= sum_freq
         intensity_score /= sum_freq
         return bias_score, intensity_score
 
     def get_tfidf(self, doc_idx, token):
+        '''
+        get the tfidf score for a token in a document
+        :param doc_idx: index of the document
+        :param token: token to get tfidf score for
+        '''
         if token in self.tfidf:
             return self.tfidf[token].iloc[doc_idx]
         else:
@@ -181,6 +209,13 @@ class FrameAxis:
             return 0.0
 
     def framing_scores_tfidf(self, doc_tokens, mf, B_T=None, doc_idx=None):
+        '''
+        compute the bias and intensity scores for a document
+        :param doc_tokens: list of tokens in the document
+        :param mf: moral foundation to compute scores for
+        :param B_T: threshold for bias score
+        :param doc_idx: index of the document
+        '''
         bias_score = 0.0
         intensity_score = 0.0
         doc_tokens_set = list(set(doc_tokens))
@@ -192,7 +227,7 @@ class FrameAxis:
                 tfidf_doc_token = self.get_avg_tfidf(token)
             sum_tfidf += tfidf_doc_token
             if token not in self.cos_sim_dict[mf]:
-                self.cos_sim_dict[mf][token] = self.cos_sim(self.model[token], self.axes[mf])
+                self.cos_sim_dict[mf][token] = cos_sim(self.model[token], self.axes[mf])
             bias_score += tfidf_doc_token * self.cos_sim_dict[mf][token]
             if B_T is not None:
                 intensity_score += tfidf_doc_token * (self.cos_sim_dict[mf][token] - B_T) ** 2
@@ -211,15 +246,19 @@ class FrameAxis:
         sum_freq = 0.0
         for token in doc_tokens_set:
             sum_freq += freq[token]
-            bias_score += (freq[token] * self.cos_sim(self.model[token], self.axes[mf]))
+            bias_score += (freq[token] * cos_sim(self.model[token], self.axes[mf]))
             if B_T is not None:
-                intensity_score += (freq[token] * (self.cos_sim(self.model[token], self.axes[mf]) - B_T) ** 2)
+                intensity_score += (freq[token] * (cos_sim(self.model[token], self.axes[mf]) - B_T) ** 2)
 
         bias_score /= sum_freq
         intensity_score /= sum_freq
         return bias_score, intensity_score
 
     def calc_tfidf(self, docs):
+        '''
+        calculate tfidf scores for a set of documents
+        :param docs: list of documents
+        '''
         vectorizer = TfidfVectorizer(max_df=.8, min_df=20, sublinear_tf=True)
         vectors = vectorizer.fit_transform(docs)
         feature_names = vectorizer.get_feature_names()
@@ -230,6 +269,12 @@ class FrameAxis:
         return tfidf
 
     def doc_scores(self, docs, baseline_docs, tfidf=False):
+        '''
+        compute bias and intensity scores for a set of documents
+        :param docs: list of documents
+        :param baseline_docs: list of baseline documents
+        :param tfidf: whether to use tfidf scores
+        '''
         if tfidf:
             self.tfidf = self.calc_tfidf(docs)
             print('tfidf', self.tfidf.shape)
@@ -274,6 +319,9 @@ class FrameAxis:
 
     def get_fa_scores(self, df, doc_colname, save_path=None, tfidf=False,
                       format="virtue_vice"):
+        '''
+        compute fa scores for a dataframe
+        '''
         df = df.reset_index(drop=True)
         docs = df[doc_colname]
         print(f'Preprocessing column {doc_colname}')
